@@ -1,0 +1,42 @@
+set.seed(2195)  
+pi.j<-c(0.25, 0.35, 0.2, 0.1, 0.1)
+n.j<-rmultinom(n = 1, size = 1000, prob = pi.j)
+data.frame(n.j, pihat.j = n.j/1000, pi.j)
+
+set.seed(9182)
+n.j<-rmultinom(n = 5, size = 1000, prob = pi.j)
+n.j
+n.j/1000
+
+set.seed(7812)
+save2<-rmultinom(n = 1000, size = 1, prob = c(0.25, 0.35, 0.2, 0.1, 0.1))
+save2[1:5,1:3] 
+rowMeans(save2)
+
+#modelo multinomial donde pi.11=.2,pi.21=.3,pi.12=.2,pi.22=.1,pi.13=.1,pi.23=.1
+pi.ij<-c(.2,.3,.2,.1,.1,.1)
+pi.table<-array(pi.ij,dim = c(2,3))
+pi.table
+pi.table<-array(pi.ij,dim = c(2,3),dimnames = list(X=1:2,Y=1:3))
+pi.table
+set.seed(9812)
+save<-rmultinom(n=1,size = 1000,prob = pi.ij)#usa r que significa que es una dist multinomial de manera aleatoria (random)
+
+c.table1<-array(save,dim = c(2,3),dimnames = list(X=1:2,Y=1:3))
+c.table1
+#es la primera tabla de resultados
+#las probabilidades asociadas son:
+c.table1/sum(c.table1)
+#las probabilidaes en una dist multinomial son los indicadores de maxima verosimilitud
+sum(c.table1)
+#I distribuciones multinomiales
+pi.cond<-pi.table/rowSums(pi.table)
+pi.cond
+#pi condicional, es la prob de que y tome el valor j, dado que x tome el valor de i
+set.seed(8111)
+save1<-rmultinom(1,size = 400,prob = pi.cond[1,])#primela fila con 400 eventos
+save2<-rmultinom(1,size = 600,prob = pi.cond[2,])#segunda fila con 600 eventos
+c.table2<-array(data = c(save1[1],save2[1],save1[2],save2[2],save1[3],save2[3]),dim=c(2,3),dimnames=list(X=1:2,Y=1:3))
+c.table2
+c.table2/sum(c.table2)
+rowSums(c.table2)
