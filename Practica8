@@ -1,0 +1,23 @@
+library(MASS)
+require(MASS)
+View(Pima.tr)
+View(Pima.tr2)
+base<-rbind(Pima.tr,Pima.tr2)
+train<-data.frame(base)
+train$type<-as.numeric(train$type)-1
+train
+test<-Pima.te
+test$type<-as.numeric(test$type)-1
+test
+num.Nacol1<-sum(is.na(train$npreg))
+num.Nacol2<-sum(is.na(train$glu))
+num.Nacol3<-sum(is.na(train$bp))
+num.Nacol4<-sum(is.na(train$skin))
+num.Nacol5<-sum(is.na(train$bmi))
+num.Nacol6<-sum(is.na(train$ped))
+num.Nacol7<-sum(is.na(train$age))
+num.Nacol8<-sum(is.na(train$type))
+num.Na<-c(num.Nacol1, num.Nacol2, num.Nacol3, num.Nacol4, num.Nacol5, num.Nacol6, num.Nacol7)
+tabla.numNa<-data.frame(num.Na)
+tabla.numNa
+sum(is.na(test))
