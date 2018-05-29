@@ -1,0 +1,111 @@
+eggdata <-read.table("BeetleEggCrowding.txt",header = TRUE) 
+#read.table(file = "C:\\Data\\BeetleEggCrowding.txt", header = TRUE)
+eggdata$females <- ifelse(test = eggdata$TRT == "I", yes = 1, no = 5)
+head(eggdata)
+eggdata2<-eggdata[eggdata$TRT=="I",]
+View(eggdata2)
+x11()
+stripchart(NumEggs~Temp,method="stack",data = eggdata2,ylab="Temperatura",xlab="Numero de masas de huevo")
+
+#MODELO ZIP(ZERO INFLATION)
+install.packages("pscl")
+library(pscl)
+zip.mod.tt<-zeroinfl(NumEggs~Temp|Temp,dist = "poisson",data = eggdata2)#(variables dependientes~V. indep(X1..Xp)|V.indep(Z1...Zp))
+summary(zip.mod.to)
+#primera parte coeficientes de las X y segunda parte para las Z
+
+
+#MODELO ZIP CON TEMPERATURA EN LA MEDIA SOLAMENTE
+zip.mod.to<-zeroinfl(NumEggs~Temp|1,dist = "poisson",data = eggdata2)
+summary(zip.mod.to)
+
+#MODELO ZIP CON TEMP EN LA PROBABILIDAD SOLAMENTE
+zip.mod.ot<-zeroinfl(NumEggs~1|Temp,dist = "poisson",data = eggdata2)
+summary(zip.mod.ot)
+#MODELO ZIP CON MEDIA EN LA PROBABILIDAD SOLAMENTE
+zip.mod.oo<-zeroinfl(NumEggs~1|1,dist = "poisson",data = eggdata2)
+summary(zip.mod.oo)
+
+library(lmtest)
+#comparando modelos
+lrtest(zip.mod.to,zip.mod.tt)
+#si .2078 fuera menor a .05, el modelo 2 seria quien ajustara mejor 
+#por lo tanto no hay gran cambio de manera marginal
+lrtest(zip.mod.ot,zip.mod.tt)
+#el modelo 2 ajusta mejor
+lrtest(zip.mod.oo,zip.mod.tt)
+#el modelo 2 ajusta mejor
+
+#por lo tanto quien mejor ajusta es zip.mod.to
+ 
+
+# Obteniendo la media por TRT y Temp
+aggregate(formula = NumEggs ~ TRT + Temp, data = eggdata, FUN = mean, subset = TRT == "I")
+aggregate(formula = NumEggs ~ TRT + Temp, data = eggdata, FUN = mean, subset = TRT == "G")$NumEggs/5
+
+# Fajuste del modelo
+eggmod1 <- glm(NumEggs ~ Temp*TRT, family = poisson(link = "log"), offset = log(females), data = eggdata)
+round(summary(eggmod1)$coefficients, digits = 3)
+
+
+# PredicciÃ³n de las medias
+newdata <- data.frame(TRT = c("G", "I", "G", "I"), Temp = c(21, 21, 24, 24), females = c(5, 1, 5, 1))
+mu.hat <- round(predict(object = eggmod1, newdata = newdata, type = "response"), 2)
+# conversiÃ³n de medias a tasas
+data.frame(newdata, mu.hat, rate = mu.hat/newdata$females)
+
+# Pruebas Anova
+library(car)
+Anova(eggmod1)
+
+# Matriz de combinaciones lineales
+coef.mat <- as.matrix(rbind(c(1,21,1,21), c(1,24,1,24), c(1,21,0,0), c(1,24,0,0)))
+
+# Intervalos de Wald
+install.packages("multcomp")
+library(multcomp)
+wald <- glht(eggmod1, linfct = coef.mat)
+
+summary(wald)
+round(exp(confint(wald)$confint), digits = 2)
+
+summary(wald, test = univariate())
+wald.ci <- exp(confint(wald, calpha = qnorm(0.975))$confint)
+round(wald.ci, digits = 2)
+
+# Intervalos de confianza LR
+library(mcprofile)
+LRCI <- mcprofile(eggmod1, CM = coef.mat)
+exp(confint(LRCI, level = 0.95))
+exp(confint(LRCI, level = 0.95, adjust = "none"))
+wald.calc <- wald(LRCI)
+exp(confint(wald.calc, level = 0.95, adjust = "none"))
+
+
+# GrÃ¡fica
+x11(height = 6, width = 7, pointsize = 15)
+# pdf(file = "c:\\figures\\Figure4.8BW.pdf", width = 7, height = 6, colormodel = "cmyk", pointsize = 15)   
+plot(x = c(21,24,21,24), y = wald.ci[,1], xlim = c(20,25.5), ylim = c(0,5), xlab = "Temperatura", ylab = "Media de masas de huevos por hembra")
+segments(x0 = 21, x1 = 24, y0 = wald.ci[1,1], y1 = wald.ci[2,1], lty = "solid", lwd = 2)
+segments(x0 = 21, x1 = 24, y0 = wald.ci[3,1], y1 = wald.ci[4,1], lty = "dotted", lwd = 2)
+segments(x0 = 21, x1 = 21, y0 = wald.ci[1,2], y1 = wald.ci[1,3], lwd = 2)
+segments(x0 = 21, x1 = 21, y0 = wald.ci[3,2], y1 = wald.ci[3,3], lwd = 2)
+segments(x0 = 24, x1 = 24, y0 = wald.ci[2,2], y1 = wald.ci[2,3], lwd = 2)
+segments(x0 = 24, x1 = 24, y0 = wald.ci[4,2], y1 = wald.ci[4,3], lwd = 2)
+legend(x = 24, y = 1, legend = c("Individual", "Crowded"), cex = 0.9, lty = c("solid", "dotted"), lwd = 2, title = "TRT Level", bty = "n")
+# dev.off()  
+
+
+# VersiÃ³n en color
+x11(height = 6, width = 7, pointsize = 15)
+# pdf(file = "c:\\figures\\Figure4.8color.pdf", width = 7, height = 6, colormodel = "cmyk", pointsize = 15)   # Create plot for book
+plot(x = c(21,24,21,24), y = wald.ci[,1], xlim = c(20,25.5), ylim = c(0,5), xlab = "Temperature", ylab = "Media de masas de huevos por hembra")
+segments(x0 = 21, x1 = 24, y0 = wald.ci[1,1], y1 = wald.ci[2,1], col = "blue", lwd = 2)
+segments(x0 = 21, x1 = 24, y0 = wald.ci[3,1], y1 = wald.ci[4,1], col = "red", lwd = 2)
+segments(x0 = 21, x1 = 21, y0 = wald.ci[1,2], y1 = wald.ci[1,3], col = "blue", lwd = 2)
+segments(x0 = 21, x1 = 21, y0 = wald.ci[3,2], y1 = wald.ci[3,3], col = "red", lwd = 2)
+segments(x0 = 24, x1 = 24, y0 = wald.ci[2,2], y1 = wald.ci[2,3], col = "blue", lwd = 2)
+segments(x0 = 24, x1 = 24, y0 = wald.ci[4,2], y1 = wald.ci[4,3], col = "red", lwd = 2)
+legend(x = 24, y = 1, legend = c("Individual", "Crowded"), cex = 0.9, col = c("blue", "red"), lwd = 2, title = "TRT Level", bty = "n")
+# dev.off()  
+
