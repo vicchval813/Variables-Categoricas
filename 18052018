@@ -1,0 +1,94 @@
+setwd("C://Users//Sala-H1//Documents//VariablesCategoricas")
+#MODELOS POISSON CUANDO LA VARIABLE DEPENDIENTE E INDEPENDIENTES SON CATEGORICAS CON UN DETERMINADO NUMERO DE NIVELES 
+setwd("C://Users//USUARIO//Documents//Variables Categoricas")
+alldata <- read.table(file = "BirdCounts.csv", sep = ",", header = TRUE)
+head(alldata)
+contrasts(alldata$Loc)# da la tabla de los niveles para codificar nuestras variables 
+#como son seis niveles solo necesitamos 5 variables indicadoras 
+
+# Ajustar regresiÃ³n de Poisson y probar si todas las medias son iguales
+M1 <- glm(formula = Birds ~ Loc, family = poisson(link = "log"), data = alldata)
+summary(M1)
+M1$coefficients #logaritmo de los betas, alpha =.05 el valor p es muy pequeño , B0 es impprtante para el modelo
+exp(M1$coefficients) #valores de los betas
+
+#B0 es 3.87 , la media de aves en esa localidad es 48.25, es decir el numero de aves en edge(sacado de la tabla de constrastes)
+
+
+# Obtener predicciones de las medias
+pred.data <- data.frame(Loc = c("ForA", "ForB", "Frag", "Edge", "PasA", "PasB"))
+means <- predict(object = M1, newdata = pred.data, type = "link", se.fit = TRUE)
+alpha <- 0.05
+
+# Intervalo de confianza de Wald
+lower.logmean <- means$fit + qnorm(alpha/2)*means$se.fit
+upper.logmean <- means$fit + qnorm(1 - alpha/2)*means$se.fit
+
+# Uniendo resultados
+mean.wald.ci <- data.frame(pred.data, round(cbind(exp(means$fit), exp(lower.logmean), exp(upper.logmean)), digits = 2))
+colnames(mean.wald.ci) <- c("Location", "Mean", "Lower", "Upper")
+mean.wald.ci## columna mean es la prediccion ya , es decir, si tomaramos otra muestra se esperaria que la media se encontrara en ese intervalo de confianza 
+
+# Para probar "todas las medias son iguales" vs. "no todas las medias son iguales"
+# library(car)
+anova(M1, test ="Chisq")
+#como pvalue es muy pequeño , Ho=medias iguales , por lo tanto se rechaza hipotesis nula y no todas las medias son iguales 
+
+######################################################################
+# Obtener intervalos LR para las medias.  
+library(mcprofile)
+install.packages("mcprofile")
+K <- matrix(data = c(1, 1, 0, 0, 0, 0,
+                     1, 0, 1, 0, 0, 0,
+                     1, 0, 0, 1, 0, 0,
+                     1, 0, 0, 0, 0, 0,
+                     1, 0, 0, 0, 1, 0,
+                     1, 0, 0, 0, 0, 1), nrow = 6, ncol = 6, byrow = TRUE)
+K
+
+linear.combo <- mcprofile(object = M1, CM = K)
+ci.log.mu <- confint(object = linear.combo, level = 0.95, adjust = "none")
+
+mean.LR.ci1 <- data.frame(Loc = pred.data, Estimate = exp(ci.log.mu$estimate), Lower = exp(ci.log.mu$confint[,1]), Upper = exp(ci.log.mu$confint[,2]))
+mean.LR.ci1
+
+mean.LR.ci1$Loc2 <- factor(mean.LR.ci1$Loc, levels = levels(mean.LR.ci1$Loc)[c(2,3,4,1,5,6)])
+
+# GrÃ¡fica
+x11(width = 7, height = 5, pointsize = 12)   
+# pdf(file = "c:\\figures\\Figure4.7color.pdf", width = 7, height = 5, colormodel = "cmyk")   
+stripchart(Lower ~ Loc2, data = mean.LR.ci1, vertical = FALSE, xlim = c(20,150), col = "red", pch = "(", main = "", xlab = "Bird Count", ylab = "Location")
+stripchart(Upper ~ Loc2, data = mean.LR.ci1, vertical = FALSE, col = "red", pch = ")", add = TRUE)
+stripchart(Estimate ~ Loc2, data = mean.LR.ci1, vertical = FALSE, col = "red", pch = "+", add = TRUE)
+grid(nx = NA, ny = NULL, col = "gray", lty = "dotted")
+abline(v = mean(alldata$Birds), col = "darkblue", lwd = 4)
+# dev.off()  
+
+#####################################################################
+# Intervalos de confianza para combinaciones lineales de los parÃ¡metros
+
+# Coeficientes para las combinaciones lineales
+contr.mat <- rbind(c(0,.5,.5,0,0,0), c(0,.5,.5,-1,0,0), c(0,.5,.5,0,-.5,-.5), 
+                   c(0,0,0,1,0,0), c(0,0,0,1,-.5,-.5), c(0,0,0,0,-.5,-.5))
+rownames(contr.mat) <- c("For-Edge", "For-Frag", "For-Past", "Frag-Edge", "Frag-Past", "Edge-Past")
+contr.mat
+## LOA NTERIOR DE CONTR.MAT SON COMBINACIONES LINEALES PARA HACER LAS COMPARACIOES POR EJEMPLO ESTA:
+#"c(0,.5,.5,-1,0,0) ES COMPARAR LA MEDIA DE LOS BOSQUES RESPECTO AL AREA F5RAGMENTADA 
+
+linear.combo<-mcprofile(M1,CM=contr.mat)
+summary(linear.combo)
+## como vemos los p values hay cuatro de las seis que tienen buenos ips , menores a .05, se ve la tendencia que esperaban los investigadores, es decir, no todas las medias son iguales 
+# ejemplo FOR-EDGE se rechaza H0: Las medias no son las mismas 
+
+
+exp(confint(linear.combo,adjust = "none")$confint)#intervalo de confianza para las diferencias anteriores 
+#ejemplo 
+#1.7878645 2.459671 hay al menos dos veces mas aves en promedio en el bosque que en la tierra de pastoreo(dos está en el punto medio)
+
+
+
+
+
+
+######################################### SITUACION EN LA QUE TENEMOS UNA TABLA DE CONTINGENCIA#########################
+############## LA VARIABLE DE FILAS Y COLUMNA TIENEN VARIOS NIVELES CADA UNA #######################################
