@@ -1,0 +1,70 @@
+##ajustando modelio poisson considerando como ordinal
+lin.score1<-c(rep(x=c(1,2,3,4,5),times=4))
+lin.score2<-c(rep(x=c(0,2,3,4,6),times=4))
+extrem.score<-c(rep(x=c(2,1,0,1,2),times=4))
+alldata<-data.frame(alldata,lin.score1,lin.score2,extrem.score)
+View(alldata)
+#vamos a ajustar un modelo homogéneo en PI:puntuación 1,2,3,4,5
+mod.hom.lin1.PI<-glm(count~gender*party+gender*ideol+party*lin.score1,family = poisson(link="log"),data=alldata)#aqui como estamos en PI,y la I es laordinal,multiplicamos P*scores
+summary(mod.hom.lin1.PI)
+
+check.na <- is.na(mod.hom.lin1.PI$coefficients)
+mod.hom.lin1.PI$coefficients <- mod.hom.lin1.PI$coefficients[!check.na]
+
+library(multcomp)
+wald <- glht(mod.hom.lin1.PI, linfct = contr.mat)
+wald.ci <- round(exp(confint(wald, calpha = qnorm(0.975))$confint), 2)
+row.names(wald.ci) <- c("GP Rep | M:F", "GI VC:SC | M:F", "GI VC:M | M:F", "GI VC:SL | M:F", "GI VC:VL | M:F", "GI SC:M | M:F", "GI SC:SL | M:F", "GI SC:VL | M:F", "GI M:SL | M:F", "GI M:VL | M:F", "GI SL:VL | M:F", "PI REP | 1 Cat Ideol", "PI REP | 2 Cat Ideol", "PI REP | 3 Cat Ideol", "PI REP | 4 Cat Ideol")
+colnames(wald.ci) <- c("Estimate", "Lower CI", "Upper CI")
+wald.ci
+
+
+#intervalos de Wald de manera manual 
+beta<-matrix(coef(mod.hom.lin1.PI),ncol = 1)
+beta
+
+v.beta<-vcov(mod.hom.lin1.PI)
+v.beta
+
+log.contrast<-contr.mat%*%beta
+SElog.contrast<-matrix(sqrt(diag(contr.mat%*%v.beta%*%t(contr.mat) )),ncol = 1)
+alpha<-0.05
+lower.log<-log.contrast+qnorm(alpha/2)*SElog.contrast
+upper.log<-log.contrast+qnorm(1-alpha/2)*SElog.contrast
+wald.ci.1<-round(data.frame(exp(log.contrast),exp(lower.log),exp(upper.log)),digits = 2)
+wald.ci.1
+
+##comparando los modelos homogeneos,el ordinal y no ordinal(ajustado antes)
+
+anova(mod.hom.lin1.PI,mod.hom,test = "Chisq")
+#con un valor p de .16 no rechazamos hipotesis nula , por tanto el sistema de puntuaciones ajusta bien
+
+
+
+
+############ ajustemos un modelo poisson donde se maneje por tasas de exposición
+#log(ri)=log(Ui/ti)=Bo+B1X1i+....+BpXpi#p es el numero de variables independientes que queremos ajustar en el modelo
+
+#log(Ui)=Bo+B1X1i+....+BpXpi+log(ti)
+#Ui=ti*exp(Bo+B1X1i+....+BpXpi)
+##numeggs conteos de cajas de huevos , TRT,I=UNA  HEMBRA, G= GRUPO DE HEMBRAS
+aggregate(formula=NumEggs~TRT+Temp,data = eggdata,FUN=mean,subset = TRT=="I")
+aggregate(formula=NumEggs~TRT+Temp,data = eggdata,FUN=mean,subset = TRT=="G")
+
+###modelo ajustar log(U)=log(t)+Bo+B1Temp+B2TRTI+B3Temp*TRTI(el TRTI es porque TRT tiene solo dos variables y solo necesita una indicadora,entonces si I=1 es para individual si es cero es para grupo)
+
+#Modelo usando temperatura, agrupamiento e interacción
+eggmod1<-glm(NumEggs~Temp*TRT,family=poisson(link="log"),offset =log(females),data = eggdata )#offset es para poner la unidad de ecposición(hembras)
+
+eggdata$females<-ifelse(test = eggdata$TRT=="I",yes = 1,no=5)
+View(eggdata)
+
+round(summary(eggmod1)$coefficients,3)
+##como los coeficientes son positivos a mayor temperatura y en cajas con solo una hembra aumentan las masas de huevos
+##como la interaccion es negativa,que si hicieramos una tasa de tasas de huevos esta se incrementa a temperaturasmas bajas
+
+exp(-7.955++21*0.347+ 7.795*1 -0.279*21*1)##como queremos la masa de huevos por una sola hembra para una tempoeratura de 21 grados , por eso multimpliacamos por 1, porque si I=1 hablanmos de una sola hembra
+
+newdata<-data.frame(TRT=c("G","I","G","I"),Temp=c(21,21,24,24),females=c(5,1,5,1))
+mu.hat<-round(predict(object = eggmod1,newdata =newdata,type = "response"),2)
+data.frame(newdata,mu.hat,rate=mu.hat/newdata$females)
